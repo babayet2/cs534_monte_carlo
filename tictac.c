@@ -25,6 +25,7 @@ unsigned rng(){
 }
 
 int place_tile(struct ttt *t, int location, BOARD_TYPE player){
+    if(t->state) return 0;
     if(t->board[location] != 0) return 0;
     t->board[location] = player;
     //printf("placed_tile %c in location %d\n", player, location);
@@ -150,34 +151,37 @@ void init_uttt(struct uttt *ut){
     memset(ut, 0, sizeof(struct uttt));
 }
 
+int random_agent(struct uttt *ut, unsigned to_play, BOARD_TYPE player){
+    //if board to play is full, reset it 
+    while(ut->t[to_play].state) to_play = rng() % 9;
+    while(1){
+        //printf("playing in board %u\n", to_play);
+        unsigned rand = rng() % 9;
+        //printf("to play %d\n", to_play);
+        int placed = place_tile(&ut->t[to_play], rand, player);
+        if(placed){ 
+            //check game over in sub-game  
+            ut->t[to_play].state = t_check_win(&ut->t[to_play]);
+            return rand;
+        }
+    }
+}
+
+
 //random decisions for now
-BOARD_TYPE utt_game_loop(struct uttt *ut){
+BOARD_TYPE utt_continue(struct uttt *ut, unsigned to_play, int (*agent)(struct uttt *, unsigned, BOARD_TYPE)){
     int player = 0;
     BOARD_TYPE players[2] = {'X', 'O'};
-    unsigned to_play = rng() % 9;
+    //unsigned to_play = rng() % 9;
     //game loop
     while(1){
         //selection loop
-        while(1){
-            //printf("playing in board %u\n", to_play);
-            unsigned rand = rng() % 9;
-            //printf("to play %d\n", to_play);
-            int ret = place_tile(&ut->t[to_play], rand, players[player]);
-            if(ret){
-                //check game over in sub-game
-                ut->t[to_play].state = t_check_win(&ut->t[to_play]);
-                to_play = rand; 
-                break;
-            }
-        }    
+        to_play = agent(ut, to_play, players[player]);
         //print_uttt(&ut); 
         //check victory
         BOARD_TYPE ret = ut_check_win(ut);
         if(ret) return ret;
 
-        //check that to_play is valid
-        while(ut->t[to_play].state) to_play = rng() % 9;
-        //print_uttt(&ut); 
         //increment player
         player++;
         player %= 2;
@@ -190,13 +194,62 @@ BOARD_TYPE utt_game_loop(struct uttt *ut){
     print_uttt(ut);
 }
 
+int mcts_agent(struct uttt *ut, unsigned to_play, BOARD_TYPE player){
+    int k_max = 1;
+    //int free = (int) ut->t[to_play].state;
+    while(ut->t[to_play].state) to_play = rng() % 9;
+    int max_games = 0;
+    int saved_game, saved_position;
+   // if(!free){
+        for(int position = 0; position < 9; position++){
+            struct uttt test_ut = *ut;
+            int placed = place_tile(&test_ut.t[to_play], position, player);
+            if(placed){
+                int games_won = 0;
+                for(int k = 0; k < k_max; k++){
+                    BOARD_TYPE result = utt_continue(&test_ut, position, random_agent);
+                    if(result == player) games_won++;
+                }
+                if(games_won > max_games){
+                    max_games = games_won;
+                    saved_game = to_play;
+                    saved_position = position;
+                }
+            }
+     //   }
+    }/*
+    else{
+        for(int position = 0; position < 9; position++){
+            for(to_play = 0; to_play < 9; to_play++){
+                struct uttt test_ut = *ut;
+                int placed = place_tile(&test_ut.t[to_play], position, player);
+                if(placed){
+                    int games_won = 0;
+                    for(int k = 0; k < k_max; k++){
+                        BOARD_TYPE result = utt_continue(&test_ut, position, random_agent);
+                        if(result == player) games_won++;       
+                    if(games_won > max_games){
+                        max_games = games_won;
+                        saved_game = to_play;
+                        saved_position = position;
+                    }
+                }
+            }
+        
+    }
+*/
+    int placed = place_tile(&ut->t[saved_game], saved_position, player);
+    ut->t[to_play].state = t_check_win(&ut->t[to_play]);
+    return saved_position;
+}
+
 int main(){
     int d, x, o;
     d = x = o = 0;
-    for(int i = 0; i < 1000000; i++){
+    for(int i = 0; i < 1; i++){
         struct uttt ut;
         init_uttt(&ut);
-        char u = utt_game_loop(&ut);
+        char u = utt_continue(&ut, rng() % 9, mcts_agent);
         switch(u){
             case 'D':
                 d++;
