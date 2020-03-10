@@ -18,18 +18,16 @@ struct uttt{
 };
 
 unsigned rng(){
-    int fd;
     unsigned r;
-    fd = open("/dev/urandom", O_RDONLY);
-    read(fd, &r, sizeof(int));
-    close(fd);
+    asm ( "rdrand %0"
+        : "=r" (r));
     return r;
 }
 
 int place_tile(struct ttt *t, int location, BOARD_TYPE player){
     if(t->board[location] != 0) return 0;
     t->board[location] = player;
-    printf("placed_tile %c in location %d\n", player, location);
+    //printf("placed_tile %c in location %d\n", player, location);
     return 1;
 }
 
@@ -78,7 +76,7 @@ BOARD_TYPE ut_check_win(struct uttt *ut){
             if(ut->t[(row * 3) + col].state != piece) piece = 0;
         }
         if(piece){
-            printf("ROW VICTORY\n");
+            //printf("ROW VICTORY\n");
             return piece;
         }
     }
@@ -91,7 +89,7 @@ BOARD_TYPE ut_check_win(struct uttt *ut){
             if(ut->t[col + (row * 3)].state != piece) piece = 0;
         }
         if(piece){
-            printf("COLUMN VICTORY\n");
+            //printf("COLUMN VICTORY\n");
             return piece;
         } 
     }
@@ -161,7 +159,7 @@ BOARD_TYPE utt_game_loop(struct uttt *ut){
     while(1){
         //selection loop
         while(1){
-            printf("playing in board %u\n", to_play);
+            //printf("playing in board %u\n", to_play);
             unsigned rand = rng() % 9;
             //printf("to play %d\n", to_play);
             int ret = place_tile(&ut->t[to_play], rand, players[player]);
@@ -184,18 +182,33 @@ BOARD_TYPE utt_game_loop(struct uttt *ut){
         player++;
         player %= 2;
 
-        char buf;
-        scanf("%c", &buf);
-        print_uttt(ut);
+        //char buf;
+        //scanf("%c", &buf);
+        //print_uttt(ut);
     }
 
     print_uttt(ut);
 }
 
 int main(){
-    struct uttt ut;
-    init_uttt(&ut);
-    printf("%c WINS\n" ,utt_game_loop(&ut));
-    print_uttt(&ut);
+    int d, x, o;
+    d = x = o = 0;
+    for(int i = 0; i < 1000000; i++){
+        struct uttt ut;
+        init_uttt(&ut);
+        char u = utt_game_loop(&ut);
+        switch(u){
+            case 'D':
+                d++;
+                break;
+            case 'X':
+                x++;
+                break;
+            case 'O':
+                o++;
+                break;
+        }
+    }
+    printf("d %d | x %d | o %d\n", d, x, o);
     return 0;
 }
